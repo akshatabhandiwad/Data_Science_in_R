@@ -361,7 +361,7 @@ barplot(gains$mean.resp/mean(spam.lvl),
 
  
 
-##10. Using probability threshold of 0.25
+## 10. Using probability threshold of 0.25
 
 ``` r
 # Confusion matrix for cutoff = 0.25 to spam class
@@ -401,4 +401,4 @@ confusionMatrix(as.factor(ifelse(pred.valid$posterior[,2]>= 0.25, 1, 0)),
 
 ##### In this case, we want to classify the spam emails amongst the non-spam ones. Hence, the threshold of 0.25 is applied to the posterior probability of spam class.
 
-#### After applying threshold of 0.25, the accuracy of the model is increased to 0.8672 from 0.8411 (threshold of 0.5). As seen from the confusion matrix, more number of observations are classifed as spam correctly. There is also increase in the Sensitivity from 68% to 85% and decrease in Specificity from 94% to 87%.
+##### After applying threshold of 0.25, the accuracy of the model is increased to 0.8672 from 0.8411 (threshold of 0.5). As seen from the confusion matrix, more number of observations are classifed as spam correctly. There is also increase in the Sensitivity from 68% to 85% and decrease in Specificity from 94% to 87%.
