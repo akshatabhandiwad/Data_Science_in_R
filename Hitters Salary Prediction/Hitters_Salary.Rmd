@@ -1,0 +1,305 @@
+---
+title: "Hitters Salary Prediction - Decision Tree & Ensemble methods"
+date: "`r Sys.Date()`"
+mainfont: Arial
+output: rmarkdown::github_document
+
+---
+
+
+##### Loading required packages
+```{r loadPackages, warning=FALSE, message=FALSE, results='hide' }
+
+if(!require("pacman")) install.packages("pacman")
+pacman::p_load(ISLR, MASS, rpart, rpart.plot, caret, stats, lme4, data.table, 
+               randomForest, gbm, tree, leaps, mosaic, moments)
+
+search()
+
+```
+
+
+##### Loading the data
+```{r readData, warning=FALSE, message=FALSE}
+
+Hitters <- data.table(Hitters)
+  
+```
+
+
+## 1. Removing the observations with unknown salary information
+```{r Unknown slary info}
+
+# Removing NA in Salary
+Hitters.clean <- Hitters[!is.na(Hitters$Salary),]
+  
+# Obervations removed
+Removed.obs <- nrow(Hitters) - nrow(Hitters.clean)
+Removed.obs
+
+```
+
+
+##### Hitter dataset contains 322 observations. Among this, 263 observations do not have a missing/unknown salary observations 263 rows. Thus, a total of 59 observations containing unknown salary information were removed.
+
+
+$~$
+
+
+## 2. Transformation the salary variable
+```{r Transformation of Salary variable}
+
+# Plotting Salary before transformation
+densityplot(~ Salary , data = Hitters.clean,
+            main = "Density plot before transformation", 
+            lwd=3,  col= "darkblue",
+            cex.axis=1.2, cex.lab= 1.2, cex.main=2)
+
+skew.before <- skewness(Hitters.clean$Salary)
+skew.before
+
+#Natural log transformation
+Hitters.clean$Sal_Log = log(Hitters.clean$Salary)
+
+
+# Plotting Salary after transformation
+densityplot(~ Sal_Log , data = Hitters.clean,
+            main = "Density plot after transformation", 
+            lwd=3,  col= "darkblue",
+            cex.axis=1.2, cex.lab= 1.2, cex.main=2)
+
+skew.after <- skewness(Hitters.clean$Sal_Log) 
+skew.after
+
+```
+
+##### The density plot for the salary variable observations before transformation clearly decipts that the datapoints are considerably more when the annual salary of baseball palyer is less than $1,000,000. Therefore salary variable before transformation is right skewed, with many outliers.
+##### Since the original continuous data do not follow the bell curve, natural log transformation is applied to make the distribution as “normal” as possible. 
+##### After transformation, we can observe that the salary points are more evenly distributed for different log(salaries). The statistical analysis results from this data become more valid. we transform the data using natural logarithmic transformations.
+##### The transformed data creates some uniformity reduces the skewness from 1.58 to -0.18.
+
+
+$~$
+
+
+## 3. Scatterplot with Hits on the y-axis and Years on the x-axis
+```{r Scatterplot}
+
+# Scatterplot
+ggplot(Hitters.clean) + 
+  geom_point(aes(x = Years, y = Hits, color = Sal_Log)) +
+  ggtitle("Relationship between Years and Hits") 
+
+
+```
+
+##### From the scatterplot, it is observed that the salary of the players increases as the number of years in the major leagues increases. As the number of hits increase, along with increase in the number of years, the annual salary of baseball players are mostly in the higher range.
+##### There are some outliers. Some players with experience of 5 years to 10 years with hits more than 150 have high salaries. There are two observations with high annual salaries with less than 5 years in major leagues and hits less than 50. These records needs to be verified. Asssuming that these are genuine observations, it can be understood that variable/s other than years and hits can also be an influencial factor in deciding annual salaraies. 
+
+
+$~$
+
+
+## 4. linear regression model of Log Salary
+```{r Linear reg model}
+
+# Dropping the original Salary column
+Hitters.clean <- Hitters.clean[,-c("Salary")]
+
+# Regression model for best subset selection
+model1 = regsubsets(Sal_Log ~., data = Hitters.clean, nvmax = 19)
+model1_summary <- summary(model1)
+model1_summary
+
+bic_min <- which.min(model1_summary$bic)
+bic_min
+
+```
+
+
+##### The model with lowest BIC is considered as the best model. In the above regression model, model 3 is the best with "Hits", "Walks" and "Years" as its predictors. 
+
+
+$~$
+
+
+## 5. Creating Training and Validation dataset
+```{r Train and test data}
+
+set.seed(42)
+train_index <- sample(c(1:nrow(Hitters.clean)), round(0.8 * nrow(Hitters.clean),0))  
+
+train.data <- Hitters.clean[train_index, ]
+test.data <- Hitters.clean[-train_index, ]
+
+```
+
+##### 80% of the data is taken as the training dataset and 20% of the observations are assigned as test and validation dataset.
+
+
+$~$
+
+
+
+## 6. Regression tree with Years and Hits
+```{r Regression tree with years and hits}
+
+set.seed(42)
+
+# Decision Tree
+model2 <- rpart( Sal_Log ~ Years + Hits , data = train.data , method = "anova")
+prp(model2, type = 1, extra = 1, under = TRUE, roundint = FALSE, 
+    split.font = 2, varlen = -10, box.palette = "BuOr")
+
+# Rules
+rpart.rules(model2, cover = TRUE)
+
+# Highest salary
+exp(6.7)
+
+
+```
+
+
+##### RULE = IF (Years >= 4.5) and (Hits >= 104) then, the log(salaries) is highest.
+##### The players with experience more than or equal to 4.5 years and Hits more than or equal to 104 receive the highest salary on opening dates of more than $812,405. As seen from the decision tree, there are 77 players in this category consideirng only "Years" and "Hits" variables.
+
+
+$~$
+
+
+## 7. Regression tree with all variables
+```{r Regression tree with all variables}
+
+set.seed(42)
+
+# Decision Tree
+model3 <- rpart( Sal_Log ~ . , data = train.data , method = "anova")
+prp(model3, type = 1, extra = 1, under = TRUE, roundint = FALSE, 
+    split.font = 2, varlen = -10, box.palette = "BuOr")
+
+# Rules
+rpart.rules(model3, cover = TRUE)
+
+
+# Highest salary
+exp(7.3)
+
+
+# boosting on training set
+Shrinkage <- seq(0.01, 0.05, by = 0.0009) 
+training.mse <- array(NA,length(Shrinkage))
+
+
+for (i in 1:length(Shrinkage)) {
+  Hitters.boost <- gbm(Sal_Log ~. , data = train.data, distribution = 'gaussian',
+                   n.trees = 1000, shrinkage = Shrinkage[i], verbose = FALSE )
+  
+  training.mse[i] <- mean((predict(Hitters.boost, train.data, n.trees = 1000) 
+                           - (train.data$Sal_Log))^2)}
+
+# Plotting shrinkage values and training MSE
+plot(Shrinkage, training.mse, type = "b", col = "darkblue", pch = 19,
+     xlab = "Shrinkage Parameter", ylab = "Training MSE",
+     main = "Training MSE for varying shrinkage values")
+
+
+```
+
+##### RULE = IF (CAtBat >= 1284) and (AtBat >= 369) and (CRBI >= 300) and (PutOuts	>=	809) then, the log(salaries) is highest.
+##### The players with number of times at bat during his career more than or equal to 1284, number of times at bat in 1986 is more than or equal to 369, number of runs batted in during his career more than or equal to 300 and number of put outs in 1986 more than or equal to 809 receive the highest salary on opening dates of more than $1480,300. As seen from the decision tree, there are 9 players in this category consideirng all the variables.
+
+##### From the graph we can see that as the Shrinkage Parameter increases, the MSE from the training data is decreasing. This indicates that because of low learning rate, more time is taken to analyse the data. When shrinkage parameter is at the least, the difference between the actual value and predicted value is high and hence the error is more. With the increasing values of shrinkage parameter, the error reduces. 
+
+
+$~$
+
+
+
+## 8. Shrinkage Value and test data
+```{r Shrinkage test}
+
+set.seed(42)
+
+# test dataset
+test.mse <- array(NA,length(Shrinkage))
+
+
+for (i in 1:length(Shrinkage)) {
+  Hitters.boost2 <- gbm(Sal_Log ~. , data = train.data, distribution = 'gaussian',
+                   n.trees = 1000, shrinkage = Shrinkage[i], verbose = FALSE )
+  test.mse[i] <- mean((predict(Hitters.boost2, test.data, n.trees = 1000) - (test.data$Sal_Log))^2)
+}
+
+# Plotting shrinkage values and test MSE
+plot(Shrinkage, test.mse, type = "b",
+     xlab = "Shrinkage Parameter", 
+     ylab = "Test MSE",
+     main = "Test MSE for varying shrinkage values",
+     col = "darkblue", pch = 19)
+
+# shrinkage parameter for least test MSE
+Test.shrinkage <- data.frame("Shrinkage" = Shrinkage, "TestMSE" = test.mse)
+
+min(Test.shrinkage$TestMSE)
+Test.shrinkage$Shrinkage[which(Test.shrinkage$TestMSE == min(Test.shrinkage$TestMSE))]
+
+```
+
+##### As expected, the plot shows that the error range for the test dataset is higher when compared to training set.
+##### The test MSE reaches a minimum of 0.3170514 with shrinking parameter value of 0.0478.
+
+
+$~$
+
+
+## 9. Most important predictor
+```{r Imp predictor, fig.height = 7}
+
+set.seed(42)
+
+# boosting on training set
+boost.hitters <- gbm(Sal_Log ~ ., data = train.data, distribution = "gaussian", n.trees = 1000, 
+                     shrinkage = test.mse[which.min(test.mse)])
+summary(boost.hitters)
+
+```
+
+##### CAtBat seems to be the best predictor with highest relative influence. Apart from CAtBat, the other top variables are Years, PutOuts, CHmRun, RBI, CWalks and Hits in the boosted model.
+
+
+$~$
+
+
+## 10. Bagging to the training set.
+```{r Bagging training}
+
+set.seed(42)
+
+# bagging on training set
+train <- sample(1:nrow(Hitters.clean),round(0.8 * nrow(Hitters.clean))) 
+  
+bagging.df <- randomForest( Sal_Log ~., data = Hitters.clean , subset = train,
+                            mtry = 19, importance = TRUE)
+
+bagging.df
+
+yhat.bagging <- predict(bagging.df, newdata = Hitters.clean[-train,]) 
+
+# y.hat bagging and Sal_Log in test data
+plot(yhat.bagging, test.data$Sal_Log, 
+     xlab = "y.hat bagging", ylab = "Log(Salaries)",
+     main = "Test Data",
+     col = "darkblue", pch = 19)
+abline(0,1, col = "red")
+
+
+#Calculating test MSE
+mean((yhat.bagging - test.data$Sal_Log)^2)
+
+
+```
+
+##### The test set MSE after applying bagging to the training data set is 0.2436
+
+
