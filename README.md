@@ -11,6 +11,6 @@ Before running Linear Discriminant Analysis (LDA), the data is partitioned into 
 
 **2. Hitters Salary Prediction** 
 
-This project aims to predict the salaries of the Baseball players. Hitters data set from the ISLR package is used for this project. Among other information, it contains annual salary of baseball players (in thousands of dollars) on opening day of the season.
-Training dataset is created with 80% of the observation. Decision tree (Regression Tree) is used to outline the definition and Ensemble Methods (Bagging and Boosting) to produce the optimal predictive model.
+This project aims to predict the salaries of Baseball players. Hitters data set from the ISLR package was used for this project. Among other information, it contains the annual salary of baseball players (in thousands of dollars) on the opening day of the season.
+The training dataset was created with 80% of the observation. The decision tree (Regression Tree) outlined the definition, and Ensemble Methods (Bagging and Boosting) was adopted to produce the optimal predictive model.
 
